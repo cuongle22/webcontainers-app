@@ -43,7 +43,7 @@ window.addEventListener("load", async () => {
     iframeEl.src = url;
   });
 
-  const shellProcess = await startShell(terminalBe);
+  const shellProcess = await startShell(terminalBe, true);
   window.addEventListener("resize", () => {
     fitAddon.fit();
     shellProcess.resize({
@@ -79,14 +79,13 @@ document.querySelector("#app").innerHTML = `
   </div>
 `;
 
-async function startShell(terminal) {
+async function startShell(terminal, isBackend = false) {
   const shellProcess = await webcontainerInstance.spawn("jsh", {
     terminal: {
       cols: terminal.cols,
       rows: terminal.rows,
     },
   });
-  // await webcontainerInstance.spawn("git", ["--version"]);
   shellProcess.output.pipeTo(
     new WritableStream({
       write(data) {
@@ -95,6 +94,14 @@ async function startShell(terminal) {
     })
   );
   const input = shellProcess.input.getWriter();
+
+  // await webcontainerInstance.spawn("pnpm", ["install"]);
+  if (isBackend) {
+    await input.write("pnpm install\n");
+  } else {
+    await input.write("cd apps/web\n");
+  }
+
   terminal.onData((data) => {
     input.write(data);
   });

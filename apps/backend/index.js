@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
-const { constructFilesObject } = require("./mount-utils");
+const { constructFilesObject, clonePublicRepo } = require("./mount-utils");
+require("dotenv").config();
 
 const app = express();
 const port = 3000;
@@ -14,7 +15,12 @@ app.get("/", (req, res) => {
 
 app.get("/mounted-data", async (req, res) => {
   try {
-    const files = await constructFilesObject("./mount/data");
+    const repoUrl = process.env.GIT_REPO;
+    const mountPath = process.env.MOUNT_PATH;
+    // Clone the repo before constructing the files object
+    await clonePublicRepo(mountPath, repoUrl);
+
+    const files = await constructFilesObject(mountPath, repoUrl);
     return res.json(files);
   } catch (error) {
     console.error("Failed to construct files object:", error);
