@@ -9,7 +9,7 @@ import "./style.css";
 /** @type {import('@webcontainer/api').WebContainer}  */
 let webcontainerInstance;
 window.addEventListener("load", async () => {
-  const response = await axios.get("http://localhost:3000/mounted-data");
+  const response = await axios.get("http://localhost:8080/mounted-data");
   const files = response.data;
   textareaEl.value = files["package.json"].file.contents;
   textareaEl.addEventListener("input", (e) => {
