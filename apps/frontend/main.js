@@ -1,66 +1,64 @@
 import { WebContainer } from "@webcontainer/api";
-// import { files } from "./files";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import axios from "axios";
 import "@xterm/xterm/css/xterm.css";
 import "./style.css";
 
-/** @type {import('@webcontainer/api').WebContainer}  */
 let webcontainerInstance;
-window.addEventListener("load", async () => {
+
+/** Initialize and return a Terminal instance */
+function initTerminal(terminalElement, fitAddon) {
+  const terminal = new Terminal({ convertEol: true });
+  terminal.loadAddon(fitAddon);
+  terminal.open(terminalElement);
+  return terminal;
+}
+
+/** Resize terminal on window resize */
+function setupWindowResizeListener(terminal, shellProcess) {
+  window.addEventListener("resize", () => {
+    shellProcess.resize({
+      cols: terminal.cols,
+      rows: terminal.rows,
+    });
+  });
+}
+
+/** Main application initialization */
+async function initApp() {
   const response = await axios.get("http://localhost:8080/mounted-data");
   const files = response.data;
+
+  const textareaEl = document.querySelector("textarea");
   textareaEl.value = files["package.json"].file.contents;
   textareaEl.addEventListener("input", (e) => {
     writeIndexJS(e.currentTarget.value);
   });
 
   const fitAddon = new FitAddon();
+  const beTerminalEl = document.querySelector(".terminal-be");
+  const feTerminalEl = document.querySelector(".terminal-fe");
 
-  const terminalBe = new Terminal({
-    convertEol: true,
-  });
-
-  terminalBe.loadAddon(fitAddon);
-  terminalBe.open(beTerminalEl);
-
-  const terminalFe = new Terminal({
-    convertEol: true,
-  });
-
-  terminalFe.loadAddon(fitAddon);
-  terminalFe.open(feTerminalEl);
-
+  const terminalBe = initTerminal(beTerminalEl, fitAddon);
+  const terminalFe = initTerminal(feTerminalEl, fitAddon);
   fitAddon.fit();
 
-  // Call only once
   webcontainerInstance = await WebContainer.boot();
   await webcontainerInstance.mount(files);
 
-  // Wait for `server-ready` event
   webcontainerInstance.on("server-ready", (port, url) => {
-    iframeEl.src = url;
+    document.querySelector("iframe").src = url;
   });
 
-  const shellProcess = await startShell(terminalBe, true);
-  window.addEventListener("resize", () => {
-    fitAddon.fit();
-    shellProcess.resize({
-      cols: terminalBe.cols,
-      rows: terminalBe.rows,
-    });
-  });
+  const shellProcessBe = await startShell(terminalBe, true);
+  setupWindowResizeListener(terminalBe, shellProcessBe);
 
   const shellProcessFe = await startShell(terminalFe);
-  window.addEventListener("resize", () => {
-    fitAddon.fit();
-    shellProcessFe.resize({
-      cols: terminalFe.cols,
-      rows: terminalFe.rows,
-    });
-  });
-});
+  setupWindowResizeListener(terminalFe, shellProcessFe);
+}
+
+window.addEventListener("load", initApp);
 
 document.querySelector("#app").innerHTML = `
  <h2> Welcome to WebContainers</h2>
@@ -107,13 +105,3 @@ async function startShell(terminal, isBackend = false) {
   });
   return shellProcess;
 }
-
-/** @type {HTMLIFrameElement | null} */
-const iframeEl = document.querySelector("iframe");
-
-/** @type {HTMLTextAreaElement | null} */
-const textareaEl = document.querySelector("textarea");
-
-/** @type {HTMLTextAreaElement | null} */
-const beTerminalEl = document.querySelector(".terminal-be");
-const feTerminalEl = document.querySelector(".terminal-fe");
