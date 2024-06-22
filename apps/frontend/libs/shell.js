@@ -1,84 +1,86 @@
-// let webcontainerInstance;
+import { WebContainer } from "@webcontainer/api";
+import { Terminal } from "@xterm/xterm";
+import { FitAddon } from "@xterm/addon-fit";
+import axios from "axios";
 
-// /** Initialize and return a Terminal instance */
-// function initTerminal(terminalElement, fitAddon) {
-//   const terminal = new Terminal({ convertEol: true });
-//   terminal.loadAddon(fitAddon);
-//   terminal.open(terminalElement);
-//   return terminal;
-// }
+let webcontainerInstance;
 
-// /** Resize terminal on window resize */
-// function setupWindowResizeListener(terminal, shellProcess) {
-//   window.addEventListener("resize", () => {
-//     fitAddon.fit();
-//     shellProcess.resize({
-//       cols: terminal.cols,
-//       rows: terminal.rows,
-//     });
-//   });
-// }
+/** Initialize and return a Terminal instance */
+function initTerminal(terminalElement, fitAddon) {
+  const terminal = new Terminal({ convertEol: true });
+  terminal.loadAddon(fitAddon);
+  terminal.open(terminalElement);
+  return terminal;
+}
 
-// /** Main application initialization */
-// async function initApp() {
-//   const response = await axios.get("http://localhost:8080/mounted-data");
-//   const files = response.data;
+/** Resize terminal on window resize */
+function setupWindowResizeListener(terminal, shellProcess) {
+  window.addEventListener("resize", () => {
+    shellProcess.resize({
+      cols: terminal.cols,
+      rows: terminal.rows,
+    });
+  });
+}
 
-//   const textareaEl = document.querySelector("textarea");
-//   textareaEl.value = files["package.json"].file.contents;
-//   textareaEl.addEventListener("input", (e) => {
-//     writeIndexJS(e.currentTarget.value);
-//   });
+async function startShell(terminal, isBackend = false) {
+  const shellProcess = await webcontainerInstance.spawn("jsh", {
+    terminal: {
+      cols: terminal.cols,
+      rows: terminal.rows,
+    },
+  });
+  shellProcess.output.pipeTo(
+    new WritableStream({
+      write(data) {
+        terminal.write(data);
+      },
+    })
+  );
+  const input = shellProcess.input.getWriter();
 
-//   const fitAddon = new FitAddon();
-//   const beTerminalEl = document.querySelector(".terminal-be");
-//   const feTerminalEl = document.querySelector(".terminal-fe");
+  // await webcontainerInstance.spawn("pnpm", ["install"]);
+  if (isBackend) {
+    await input.write("pnpm install\n");
+  } else {
+    await input.write("cd apps/web\n");
+  }
 
-//   const terminalBe = initTerminal(beTerminalEl, fitAddon);
-//   const terminalFe = initTerminal(feTerminalEl, fitAddon);
-//   fitAddon.fit();
+  terminal.onData((data) => {
+    input.write(data);
+  });
+  return shellProcess;
+}
 
-//   webcontainerInstance = await WebContainer.boot();
-//   await webcontainerInstance.mount(files);
+/** Main application initialization */
+export async function initApp() {
+  const response = await axios.get("http://localhost:8080/mounted-data");
+  const files = response.data;
 
-//   webcontainerInstance.on("server-ready", (port, url) => {
-//     document.querySelector("iframe").src = url;
-//   });
+  const textareaEl = document.querySelector("textarea");
+  textareaEl.value = files["package.json"].file.contents;
+  textareaEl.addEventListener("input", (e) => {
+    writeIndexJS(e.currentTarget.value);
+  });
 
-//   const shellProcessBe = await startShell(terminalBe, true);
-//   setupWindowResizeListener(terminalBe, shellProcessBe);
+  const fitAddon = new FitAddon();
+  const beTerminalEl = document.querySelector(".terminal-be");
+  const feTerminalEl = document.querySelector(".terminal-fe");
 
-//   const shellProcessFe = await startShell(terminalFe);
-//   setupWindowResizeListener(terminalFe, shellProcessFe);
-// }
+  const terminalBe = initTerminal(beTerminalEl, fitAddon);
+  const terminalFe = initTerminal(feTerminalEl, fitAddon);
+  fitAddon.fit();
 
-// async function startShell(terminal, isBackend = false) {
-//   const shellProcess = await webcontainerInstance.spawn("jsh", {
-//     terminal: {
-//       cols: terminal.cols,
-//       rows: terminal.rows,
-//     },
-//   });
-//   shellProcess.output.pipeTo(
-//     new WritableStream({
-//       write(data) {
-//         terminal.write(data);
-//       },
-//     })
-//   );
-//   const input = shellProcess.input.getWriter();
+  webcontainerInstance = await WebContainer.boot();
+  await webcontainerInstance.mount(files);
 
-//   // await webcontainerInstance.spawn("pnpm", ["install"]);
-//   if (isBackend) {
-//     await input.write("pnpm install\n");
-//   } else {
-//     await input.write("cd apps/web\n");
-//   }
+  webcontainerInstance.on("server-ready", (port, url) => {
+    document.querySelector("iframe").src = url;
+  });
 
-//   terminal.onData((data) => {
-//     input.write(data);
-//   });
-//   return shellProcess;
-// }
+  const shellProcessBe = await startShell(terminalBe, true);
+  setupWindowResizeListener(terminalBe, shellProcessBe);
 
-// export default { startShell };
+  const shellProcessFe = await startShell(terminalFe);
+  setupWindowResizeListener(terminalFe, shellProcessFe);
+}

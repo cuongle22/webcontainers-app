@@ -10,7 +10,7 @@ async function constructFilesObject(directoryPath, repoUrl) {
       files[entry.name] = {
         directory: await constructFilesObject(fullPath, repoUrl),
       };
-    } else {
+    } else if (!entry.name.startsWith(".git")) {
       const contents = await fs.readFile(fullPath, "utf8");
       files[entry.name] = {
         file: {
